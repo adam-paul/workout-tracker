@@ -2,6 +2,10 @@ package com.example.workouttracker.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
+val DarkForestGreen = Color(0xFF386538)
+val MidForestGreen = Color(0xFF548F54)
+val LightForestGreen = Color(0xFF67C567)
+
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
 val Pink80 = Color(0xFFEFB8C8)

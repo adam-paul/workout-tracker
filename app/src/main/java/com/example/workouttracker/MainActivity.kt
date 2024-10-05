@@ -1,10 +1,12 @@
 package com.example.workouttracker
+import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
 
 import android.os.Bundle
 import android.app.DatePickerDialog
 import android.widget.DatePicker
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,11 +14,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,7 +35,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.*
+import org.burnoutcrew.reorderable.*
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -44,7 +52,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val database = ExerciseDatabase.getDatabase(applicationContext)
         setContent {
-            ExerciseTrackerApp(database)
+            WorkoutTrackerTheme {
+                ExerciseTrackerApp(database)
+            }
         }
     }
 }
@@ -55,7 +65,9 @@ data class Exercise(
     @ColumnInfo(name = "date") val date: String,
     @ColumnInfo(name = "name") val name: String,
     @ColumnInfo(name = "weight") val weight: String,
-    @ColumnInfo(name = "reps_or_duration") val repsOrDuration: String
+    @ColumnInfo(name = "reps_or_duration") val repsOrDuration: String,
+    @ColumnInfo(name = "notes") val notes: String = "",
+    @ColumnInfo(name = "order") val order: Int = 0
 )
 
 @Dao
@@ -75,11 +87,14 @@ interface ExerciseDao {
     @Update
     suspend fun updateExercise(exercise: Exercise)
 
-    @Query("SELECT * FROM exercise WHERE date = :date")
+    @Update
+    suspend fun updateExercises(exercises: List<Exercise>)
+
+    @Query("SELECT * FROM exercise WHERE date = :date ORDER BY `order` ASC")
     suspend fun getExercisesByDate(date: String): List<Exercise>
 }
 
-@Database(entities = [Exercise::class], version = 1)
+@Database(entities = [Exercise::class], version = 4)
 abstract class ExerciseDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
 
@@ -87,13 +102,55 @@ abstract class ExerciseDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: ExerciseDatabase? = null
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercise ADD COLUMN `order` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create new table without the `notes` column
+                db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `exercise_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `date` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `weight` TEXT NOT NULL,
+                `reps_or_duration` TEXT NOT NULL,
+                `order` INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent())
+
+                // 2. Copy data from old table to new table
+                db.execSQL("""
+            INSERT INTO `exercise_new` (`id`, `date`, `name`, `weight`, `reps_or_duration`, `order`)
+            SELECT `id`, `date`, `name`, `weight`, `reps_or_duration`, `order` FROM `exercise`
+        """.trimIndent())
+
+                // 3. Drop the old table
+                db.execSQL("DROP TABLE `exercise`")
+
+                // 4. Rename the new table to the old name
+                db.execSQL("ALTER TABLE `exercise_new` RENAME TO `exercise`")
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE exercise ADD COLUMN `notes` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: android.content.Context): ExerciseDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ExerciseDatabase::class.java,
                     "exercise_database"
-                ).build()
+                )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .build()
                 INSTANCE = instance
                 instance
             }
@@ -115,13 +172,18 @@ class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
         }
     }
 
-    fun addExercise(date: LocalDate, name: String, weight: String, repsOrDuration: String) {
+    fun addExercise(date: LocalDate, name: String, weight: String, repsOrDuration: String, notes: String) {
         viewModelScope.launch {
+            val currentExercises = dao.getExercisesByDate(date.toString())
+            val maxOrder = currentExercises.maxOfOrNull { it.order } ?: -1
+
             val exercise = Exercise(
                 date = date.toString(),
                 name = name,
                 weight = weight,
-                repsOrDuration = repsOrDuration
+                repsOrDuration = repsOrDuration,
+                notes = notes,
+                order = maxOrder + 1
             )
             dao.insertExercise(exercise)
         }
@@ -142,6 +204,12 @@ class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
     fun updateExercise(exercise: Exercise) {
         viewModelScope.launch {
             dao.updateExercise(exercise)
+        }
+    }
+
+    fun reorderExercises(exercises: List<Exercise>) {
+        viewModelScope.launch {
+            dao.updateExercises(exercises)
         }
     }
 }
@@ -203,13 +271,16 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
                     },
                     onEditExercise = { exercise ->
                         navController.navigate("editExercise/${exercise.id}")
+                    },
+                    onReorderExercises = { updatedExercises ->
+                        viewModel.reorderExercises(updatedExercises)
                     }
                 )
             }
             composable("addExercise") {
                 AddEditExerciseScreen(
-                    onExerciseAdded = { name, weight, repsOrDuration ->
-                        viewModel.addExercise(LocalDate.now(), name, weight, repsOrDuration)
+                    onExerciseAdded = { name, weight, repsOrDuration, notes ->
+                        viewModel.addExercise(LocalDate.now(), name, weight, repsOrDuration, notes)
                         navController.popBackStack()
                     },
                     onCancel = { navController.popBackStack() }
@@ -221,8 +292,8 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
             ) { backStackEntry ->
                 val date = LocalDate.parse(backStackEntry.arguments?.getString("date"))
                 AddEditExerciseScreen(
-                    onExerciseAdded = { name, weight, repsOrDuration ->
-                        viewModel.addExercise(date, name, weight, repsOrDuration)
+                    onExerciseAdded = { name, weight, repsOrDuration, notes ->
+                        viewModel.addExercise(date, name, weight, repsOrDuration, notes)
                         navController.popBackStack()
                     },
                     onCancel = { navController.popBackStack() }
@@ -238,12 +309,13 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
                 if (exercise != null) {
                     AddEditExerciseScreen(
                         exercise = exercise,
-                        onExerciseAdded = { name, weight, repsOrDuration ->
+                        onExerciseAdded = { name, weight, repsOrDuration, notes ->
                             viewModel.updateExercise(
                                 exercise.copy(
                                     name = name,
                                     weight = weight,
-                                    repsOrDuration = repsOrDuration
+                                    repsOrDuration = repsOrDuration,
+                                    notes = notes
                                 )
                             )
                             navController.popBackStack()
@@ -325,14 +397,46 @@ fun DateScreen(
     onAddExercise: () -> Unit,
     onBack: () -> Unit,
     onDeleteExercise: (Exercise) -> Unit,
-    onEditExercise: (Exercise) -> Unit
+    onEditExercise: (Exercise) -> Unit,
+    onReorderExercises: (List<Exercise>) -> Unit
 ) {
+    val exerciseList = remember { mutableStateListOf<Exercise>().apply { addAll(exercises) } }
+
+    LaunchedEffect(exercises) {
+        val newExerciseIds = exercises.map { it.id }.toSet()
+        val currentExerciseIds = exerciseList.map { it.id }.toSet()
+        if (newExerciseIds != currentExerciseIds) {
+            // Exercises have been added or removed
+            exerciseList.clear()
+            exerciseList.addAll(exercises)
+        }
+    }
+
+    val state = rememberReorderableLazyListState(
+        onMove = { from, to ->
+            exerciseList.apply {
+                if (to.index < size) {
+                    add(to.index, removeAt(from.index))
+                }
+            }
+        },
+        onDragEnd = { _, _ ->
+            val updatedExercises = exerciseList.mapIndexed { index, exercise ->
+                exercise.copy(order = index)
+            }
+            onReorderExercises(updatedExercises)
+        }
+    )
+
     Column(modifier = Modifier.padding(16.dp)) {
         Button(onClick = onBack) {
             Text("Back")
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Text(date.format(DateTimeFormatter.ISO_LOCAL_DATE), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            style = MaterialTheme.typography.headlineMedium
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onAddExercise,
@@ -341,29 +445,59 @@ fun DateScreen(
             Text("Add Exercise")
         }
         Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(exercises) { exercise ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
+        LazyColumn(
+            state = state.listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .reorderable(state)
+                .detectReorderAfterLongPress(state)
+        ) {
+            items(exerciseList, key = { it.id }) { exercise ->
+                ReorderableItem(state, key = exercise.id) { isDragging ->
+                    val elevation = if (isDragging) 8.dp else 1.dp
+                    val backgroundColor = if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White
+                    val scale = if (isDragging) 1.05f else 1f
+
+                    ElevatedCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(exercise.name, style = MaterialTheme.typography.headlineSmall)
-                            Text("Weight: ${exercise.weight}")
-                            Text("Reps/Duration: ${exercise.repsOrDuration}")
-                        }
-                        Row {
-                            IconButton(onClick = { onEditExercise(exercise) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
                             }
-                            IconButton(onClick = { onDeleteExercise(exercise) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.elevatedCardColors(containerColor = backgroundColor)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Drag Handle
+                            if (isDragging) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Drag Handle",
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.width(24.dp)) // Placeholder to align content
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(exercise.name, style = MaterialTheme.typography.headlineSmall)
+                                Text("Weight: ${exercise.weight}")
+                                Text("Reps/Duration: ${exercise.repsOrDuration}")
+                            }
+                            Row {
+                                IconButton(onClick = { onEditExercise(exercise) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
+                                }
+                                IconButton(onClick = { onDeleteExercise(exercise) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
+                                }
                             }
                         }
                     }
@@ -434,12 +568,13 @@ fun EditWorkoutDateScreen(
 @Composable
 fun AddEditExerciseScreen(
     exercise: Exercise? = null,
-    onExerciseAdded: (name: String, weight: String, repsOrDuration: String) -> Unit,
+    onExerciseAdded: (name: String, weight: String, repsOrDuration: String, notes: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(exercise?.name ?: "") }
     var weight by remember { mutableStateOf(exercise?.weight ?: "") }
     var repsOrDuration by remember { mutableStateOf(exercise?.repsOrDuration ?: "") }
+    var notes by remember { mutableStateOf(exercise?.notes ?: "") }
 
     Column(modifier = Modifier.padding(16.dp)) {
         TextField(
@@ -463,6 +598,13 @@ fun AddEditExerciseScreen(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
+        TextField(
+            value = notes,
+            onValueChange = { notes = it },
+            label = { Text("Notes") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -473,7 +615,7 @@ fun AddEditExerciseScreen(
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        onExerciseAdded(name, weight, repsOrDuration)
+                        onExerciseAdded(name, weight, repsOrDuration, notes)
                     }
                 }
             ) {
