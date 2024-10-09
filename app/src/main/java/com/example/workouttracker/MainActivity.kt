@@ -159,9 +159,11 @@ abstract class ExerciseDatabase : RoomDatabase() {
 }
 
 class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
-    val exercisesByDate: Flow<Map<LocalDate, List<Exercise>>> = dao.getAllExercises().map { exercises ->
-        exercises.groupBy { LocalDate.parse(it.date) }
-    }
+    val exercisesByDate: Flow<Map<LocalDate, List<Exercise>>> = dao.getAllExercises()
+        .map { exercises ->
+            exercises.groupBy { LocalDate.parse(it.date) }
+                .mapValues { (_, exercises) -> exercises.sortedBy { it.order } }
+        }
 
     fun updateWorkoutDate(oldDate: LocalDate, newDate: LocalDate) {
         viewModelScope.launch {
@@ -456,7 +458,7 @@ fun DateScreen(
                 ReorderableItem(state, key = exercise.id) { isDragging ->
                     val elevation = if (isDragging) 8.dp else 1.dp
                     val backgroundColor = if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White
-                    val scale = if (isDragging) 1.05f else 1f
+                    val scale = if (isDragging) 1.03f else 1f
 
                     ElevatedCard(
                         modifier = Modifier
@@ -465,7 +467,7 @@ fun DateScreen(
                                 scaleX = scale
                                 scaleY = scale
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 2.dp),
                         colors = CardDefaults.elevatedCardColors(containerColor = backgroundColor)
                     ) {
                         Row(
