@@ -4,8 +4,16 @@ import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
 import android.os.Bundle
 import android.app.DatePickerDialog
 import android.widget.DatePicker
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,30 +30,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+
 import androidx.room.*
-import org.burnoutcrew.reorderable.*
+import androidx.room.migration.Migration
+
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Calendar
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Calendar
+
+import org.burnoutcrew.reorderable.*
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -352,7 +371,6 @@ fun MainScreen(
     onEditWorkoutDate: (LocalDate) -> Unit
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
-        // Title
         Text(
             text = "WORKOUT TRACKER",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -365,27 +383,116 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(exercisesByDate.keys.sortedDescending()) { date ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = { onDateSelected(date) },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} - ${exercisesByDate[date]?.size ?: 0} exercises"
+                RetroButton(
+                    onClick = { onDateSelected(date) },
+                    onEdit = { onEditWorkoutDate(date) },
+                    onDelete = { onDeleteWorkout(date) },
+                    text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${exercisesByDate[date]?.size ?: 0} exercises"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun RetroButton(
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    text: String
+) {
+    var isPressed by remember { mutableStateOf(false) }
+    var showActions by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp)
+                .background(Color(0xFFD0D0D0))
+                .border(1.dp, Color.Black)
+                .padding(1.dp)
+        ) {
+            // Top and left highlight
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 2.dp,
+                        color = Color.White,
+                        shape = RectangleShape
+                    )
+            )
+            
+            // Bottom and right shadow
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .border(
+                        width = 2.dp,
+                        color = Color.Gray,
+                        shape = RectangleShape
+                    )
+                    .padding(top = 2.dp, start = 2.dp)
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                tryAwaitRelease()
+                                isPressed = false
+                            },
+                            onTap = { onClick() },
+                            onLongPress = {
+                                showActions = !showActions
+                            }
                         )
                     }
-                    Row {
-                        IconButton(onClick = { onEditWorkoutDate(date) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Workout Date")
-                        }
-                        IconButton(onClick = { onDeleteWorkout(date) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Workout")
-                        }
-                    }
+            ) {
+                Text(
+                    text = text,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .offset {
+                            IntOffset(
+                                x = if (isPressed) 1.dp.roundToPx() else 0,
+                                y = if (isPressed) 1.dp.roundToPx() else 0
+                            )
+                        },
+                    color = Color.Black,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showActions,
+            enter = slideInHorizontally(initialOffsetX = { it }),
+            exit = slideOutHorizontally(targetOffsetX = { it })
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                IconButton(onClick = { 
+                    onEdit()
+                    showActions = false
+                }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Workout Date")
+                }
+                IconButton(onClick = { 
+                    onDelete()
+                    showActions = false
+                }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Workout")
                 }
             }
         }
