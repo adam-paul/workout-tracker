@@ -9,6 +9,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -22,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.*
@@ -57,6 +63,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
 
@@ -185,6 +192,39 @@ class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
                 .mapValues { (_, exercises) -> exercises.sortedBy { it.order } }
         }
 
+    val exercisesByMonth: Flow<Map<YearMonth, Map<LocalDate, List<Exercise>>>> = dao.getAllExercises()
+        .map { exercises ->
+            exercises.groupBy { YearMonth.from(LocalDate.parse(it.date)) }
+                .mapValues { (_, monthExercises) ->
+                    monthExercises.groupBy { LocalDate.parse(it.date) }
+                }
+        }
+
+    // Mutable state list to hold expanded months
+    private val _expandedMonths = mutableStateListOf<YearMonth>()
+    val expandedMonths: List<YearMonth> get() = _expandedMonths
+
+    init {
+        // Collect exercisesByMonth to identify and add the most recent month
+        viewModelScope.launch {
+            exercisesByMonth.collect { exercisesByMonthMap ->
+                val mostRecentMonth = exercisesByMonthMap.keys.maxOrNull()
+                if (mostRecentMonth != null && !_expandedMonths.contains(mostRecentMonth)) {
+                    _expandedMonths.add(mostRecentMonth)
+                }
+            }
+        }
+    }
+
+    // Function to toggle the expanded state of a month
+    fun toggleMonth(month: YearMonth) {
+        if (_expandedMonths.contains(month)) {
+            _expandedMonths.remove(month)
+        } else {
+            _expandedMonths.add(month)
+        }
+    }
+
     fun updateWorkoutDate(oldDate: LocalDate, newDate: LocalDate) {
         viewModelScope.launch {
             val exercises = dao.getExercisesByDate(oldDate.toString())
@@ -252,11 +292,24 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
     val viewModel: ExerciseViewModel = viewModel(
         factory = ExerciseViewModelFactory(database.exerciseDao())
     )
+    var currentRoute by remember { mutableStateOf("main") }
+
+    navController.addOnDestinationChangedListener { _, destination, _ ->
+        currentRoute = destination.route ?: ""
+    }
+
+    val screensWithoutFAB = listOf("addExercise", "editExercise")
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate("addExercise") }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Workout")
+            AnimatedVisibility(
+                visible = screensWithoutFAB.none { currentRoute.startsWith(it) },
+                enter = fadeIn(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)),
+                exit = fadeOut(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing))
+            ) {
+                FloatingActionButton(onClick = { navController.navigate("addExercise") }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Workout")
+                }
             }
         }
     ) { innerPadding ->
@@ -266,9 +319,13 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("main") {
-                val exercisesByDate by viewModel.exercisesByDate.collectAsState(initial = emptyMap())
+                val exercisesByMonth by viewModel.exercisesByMonth.collectAsState(initial = emptyMap())
                 MainScreen(
-                    exercisesByDate = exercisesByDate,
+                    exercisesByMonth = exercisesByMonth,
+                    expandedMonths = viewModel.expandedMonths,
+                    onToggleMonth = { month ->
+                        viewModel.toggleMonth(month)
+                    },
                     onDateSelected = { date ->
                         navController.navigate("dateScreen/${date}")
                     },
@@ -366,7 +423,9 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
 
 @Composable
 fun MainScreen(
-    exercisesByDate: Map<LocalDate, List<Exercise>>,
+    exercisesByMonth: Map<YearMonth, Map<LocalDate, List<Exercise>>>,
+    expandedMonths: List<YearMonth>,
+    onToggleMonth: (YearMonth) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
     onDeleteWorkout: (LocalDate) -> Unit,
     onEditWorkoutDate: (LocalDate) -> Unit
@@ -383,14 +442,29 @@ fun MainScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(exercisesByDate.keys.sortedDescending()) { date ->
-                RetroButton(
-                    onClick = { onDateSelected(date) },
-                    onEdit = { onEditWorkoutDate(date) },
-                    onDelete = { onDeleteWorkout(date) },
-                    text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${exercisesByDate[date]?.size ?: 0} exercises"
-                )
-            }
+            exercisesByMonth
+                .keys
+                .sortedDescending()
+                .forEach { month ->
+                    item {
+                        MonthHeader(
+                            month = month,
+                            isExpanded = expandedMonths.contains(month),
+                            onToggle = { onToggleMonth(month) }
+                        )
+                    }
+                    if (expandedMonths.contains(month)) {
+                        val datesInMonth = exercisesByMonth[month] ?: emptyMap()
+                        items(datesInMonth.keys.sortedDescending()) { date ->
+                            RetroButton(
+                                onClick = { onDateSelected(date) },
+                                onEdit = { onEditWorkoutDate(date) },
+                                onDelete = { onDeleteWorkout(date) },
+                                text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises"
+                            )
+                        }
+                    }
+                }
         }
     }
 }
@@ -401,7 +475,8 @@ fun RetroButton(
     text: String,
     modifier: Modifier = Modifier,
     onEdit: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var showActions by remember { mutableStateOf(false) }
@@ -470,20 +545,33 @@ fun RetroButton(
                         )
                     }
             ) {
-                Text(
-                    text = text,
+                Row(
                     modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset {
-                            IntOffset(
-                                x = if (isPressed) 1.dp.roundToPx() else 0,
-                                y = if (isPressed) 1.dp.roundToPx() else 0
-                            )
-                        },
-                    color = Color.Black,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
+                        .fillMaxSize()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = text,
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        x = if (isPressed) 1.dp.roundToPx() else 0,
+                                        y = if (isPressed) 1.dp.roundToPx() else 0
+                                    )
+                                },
+                            color = Color.Black,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    trailingIcon?.invoke()
+                }
             }
         }
 
@@ -510,6 +598,25 @@ fun RetroButton(
             }
         }
     }
+}
+
+@Composable
+fun MonthHeader(
+    month: YearMonth,
+    isExpanded: Boolean,
+    onToggle: () -> Unit
+) {
+    RetroButton(
+        onClick = onToggle,
+        text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isExpanded) "Collapse" else "Expand"
+            )
+        }
+    )
 }
 
 @Composable
