@@ -35,6 +35,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
@@ -372,10 +373,10 @@ fun MainScreen(
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
         Text(
-            text = "WORKOUT TRACKER",
+            text = "WORKOUT LOG",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp
+                letterSpacing = 1.4.sp
             ),
             modifier = Modifier.align(Alignment.CenterHorizontally),
             color = Color.Black
@@ -397,15 +398,16 @@ fun MainScreen(
 @Composable
 fun RetroButton(
     onClick: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    text: String
+    text: String,
+    modifier: Modifier = Modifier,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var showActions by remember { mutableStateOf(false) }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -422,18 +424,18 @@ fun RetroButton(
                 modifier = Modifier
                     .fillMaxSize()
                     .border(
-                        width = 2.dp,
+                        width = 4.dp,
                         color = Color.White,
                         shape = RectangleShape
                     )
             )
-            
+
             // Bottom and right shadow
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .border(
-                        width = 2.dp,
+                        width = 4.dp,
                         color = Color.Gray,
                         shape = RectangleShape
                     )
@@ -450,9 +452,20 @@ fun RetroButton(
                                 tryAwaitRelease()
                                 isPressed = false
                             },
-                            onTap = { onClick() },
+                            onTap = {
+                                if (showActions) {
+                                    showActions = false
+                                } else {
+                                    onClick()
+                                }
+                            },
                             onLongPress = {
-                                showActions = !showActions
+                                if (onEdit != null && onDelete != null && !showActions) {
+                                    showActions = true
+                                }
+                                else if (showActions) {
+                                    showActions = false
+                                }
                             }
                         )
                     }
@@ -475,24 +488,24 @@ fun RetroButton(
         }
 
         AnimatedVisibility(
-            visible = showActions,
+            visible = showActions && onEdit != null && onDelete != null,
             enter = slideInHorizontally(initialOffsetX = { it }),
             exit = slideOutHorizontally(targetOffsetX = { it })
         ) {
             Row(
                 modifier = Modifier.padding(start = 8.dp)
             ) {
-                IconButton(onClick = { 
-                    onEdit()
+                IconButton(onClick = {
+                    onEdit?.invoke()
                     showActions = false
                 }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Workout Date")
+                    Icon(Icons.Default.Edit, contentDescription = "Edit")
                 }
-                IconButton(onClick = { 
-                    onDelete()
+                IconButton(onClick = {
+                    onDelete?.invoke()
                     showActions = false
                 }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete Workout")
+                    Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
             }
         }
@@ -515,7 +528,6 @@ fun DateScreen(
         val newExerciseIds = exercises.map { it.id }.toSet()
         val currentExerciseIds = exerciseList.map { it.id }.toSet()
         if (newExerciseIds != currentExerciseIds) {
-            // Exercises have been added or removed
             exerciseList.clear()
             exerciseList.addAll(exercises)
         }
@@ -538,21 +550,34 @@ fun DateScreen(
     )
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Button(onClick = onBack) {
-            Text("Back")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
         Text(
-            date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-            style = MaterialTheme.typography.headlineMedium
+            text = date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.5.sp
+            ),
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            color = Color.Black
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onAddExercise,
-            modifier = Modifier.fillMaxWidth()
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Add Exercise")
+            RetroButton(
+                onClick = onBack,
+                text = "Back",
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            RetroButton(
+                onClick = onAddExercise,
+                text = "Add Exercise",
+                modifier = Modifier.weight(1f)
+            )
         }
+
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn(
             state = state.listState,
@@ -584,7 +609,6 @@ fun DateScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Drag Handle
                             if (isDragging) {
                                 Icon(
                                     imageVector = Icons.Default.Menu,
@@ -592,13 +616,29 @@ fun DateScreen(
                                     modifier = Modifier.padding(end = 8.dp)
                                 )
                             } else {
-                                Spacer(modifier = Modifier.width(24.dp)) // Placeholder to align content
+                                Spacer(modifier = Modifier.width(24.dp))
                             }
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(exercise.name, style = MaterialTheme.typography.headlineSmall)
-                                Text("Weight: ${exercise.weight}")
-                                Text("Reps/Duration: ${exercise.repsOrDuration}")
+                                Text(
+                                    text = exercise.name,
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = "Weight: ${exercise.weight}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                )
+                                Text(
+                                    text = "Reps/Duration: ${exercise.repsOrDuration}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                )
                             }
                             Row {
                                 IconButton(onClick = { onEditExercise(exercise) }) {
@@ -645,21 +685,24 @@ fun EditWorkoutDateScreen(
     }
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Text("Edit Workout Date", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "Edit Workout Date",
+            style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = "Selected Date: ${newDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}",
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        RetroButton(
             onClick = { showDatePicker = true },
+            text = "Edit Date",
             modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Select New Date")
-        }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -667,9 +710,11 @@ fun EditWorkoutDateScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = onCancel) {
-                Text("Cancel")
-            }
+            RetroButton(
+                onClick = onCancel,
+                text = "Cancel",
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
@@ -689,47 +734,54 @@ fun AddEditExerciseScreen(
         TextField(
             value = name,
             onValueChange = { name = it },
-            label = { Text("Exercise Name") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Exercise Name", fontFamily = FontFamily.Monospace) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(8.dp))
         TextField(
             value = weight,
             onValueChange = { weight = it },
-            label = { Text("Weight (or N/A)") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Weight", fontFamily = FontFamily.Monospace) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(8.dp))
         TextField(
             value = repsOrDuration,
             onValueChange = { repsOrDuration = it },
-            label = { Text("Reps/Duration (or N/A)") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Reps/Duration", fontFamily = FontFamily.Monospace) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace)
         )
         Spacer(modifier = Modifier.height(16.dp))
         TextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Notes") },
-            modifier = Modifier.fillMaxWidth()
+            label = { Text("Notes", fontFamily = FontFamily.Monospace) },
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = TextStyle(fontFamily = FontFamily.Monospace)
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Button(onClick = onCancel) {
-                Text("Cancel")
-            }
-            Button(
+            RetroButton(
+                onClick = onCancel,
+                text = "Cancel",
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            RetroButton(
                 onClick = {
                     if (name.isNotBlank()) {
                         onExerciseAdded(name, weight, repsOrDuration, notes)
                     }
-                }
-            ) {
-                Text(if (exercise == null) "Add Exercise" else "Update Exercise")
-            }
+                },
+                text = if (exercise == null) "Add" else "Update",
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
