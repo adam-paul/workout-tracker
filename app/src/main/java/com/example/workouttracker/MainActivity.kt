@@ -293,9 +293,11 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
         factory = ExerciseViewModelFactory(database.exerciseDao())
     )
     var currentRoute by remember { mutableStateOf("main") }
+    var currentDate by remember { mutableStateOf<LocalDate?>(null) }
 
-    navController.addOnDestinationChangedListener { _, destination, _ ->
+    navController.addOnDestinationChangedListener { _, destination, arguments ->
         currentRoute = destination.route ?: ""
+        currentDate = arguments?.getString("date")?.let { LocalDate.parse(it) }
     }
 
     val screensWithoutFAB = listOf("addExercise", "editExercise")
@@ -307,7 +309,13 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
                 enter = fadeIn(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)),
                 exit = fadeOut(animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing))
             ) {
-                FloatingActionButton(onClick = { navController.navigate("addExercise") }) {
+                FloatingActionButton(onClick = {
+                    if (currentDate != null) {
+                        navController.navigate("addExercise/${currentDate}")
+                    } else {
+                        navController.navigate("addExercise")
+                    }
+                }) {
                     Icon(Icons.Default.Add, contentDescription = "Add Workout")
                 }
             }
@@ -326,8 +334,9 @@ fun ExerciseTrackerApp(database: ExerciseDatabase) {
                     onToggleMonth = { month ->
                         viewModel.toggleMonth(month)
                     },
-                    onDateSelected = { date ->
+                    onDateSelected = { date: LocalDate ->
                         navController.navigate("dateScreen/${date}")
+                        currentDate = date
                     },
                     onDeleteWorkout = { date ->
                         viewModel.deleteWorkout(date)
