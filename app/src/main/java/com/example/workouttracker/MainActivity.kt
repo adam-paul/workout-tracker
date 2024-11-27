@@ -42,8 +42,8 @@ class MainActivity : ComponentActivity() {
                 )
 
                 var currentRoute by remember { mutableStateOf("main") }
-                var currentDate by remember { mutableStateOf<LocalDate?>(null) }
-
+                var currentDate by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
+                
                 navController.addOnDestinationChangedListener { _, destination, arguments ->
                     currentRoute = destination.route ?: ""
                     currentDate = arguments?.getString("date")?.let { LocalDate.parse(it) }
@@ -60,9 +60,8 @@ class MainActivity : ComponentActivity() {
                         ) {
                             FloatingActionButton(
                                 onClick = {
-                                    currentDate?.let {
-                                        navController.navigate("addExercise/$it")
-                                    }
+                                    val dateToUse = currentDate ?: LocalDate.now()
+                                    navController.navigate("addExercise/$dateToUse")
                                 }
                             ) {
                                 Icon(Icons.Default.Add, "Add Workout")

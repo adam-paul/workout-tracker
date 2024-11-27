@@ -11,6 +11,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.ui.components.DeleteConfirmationDialog
 import com.example.workouttracker.ui.components.MonthConnector
 import com.example.workouttracker.ui.components.MonthHeader
 import com.example.workouttracker.ui.components.RetroButton
@@ -34,7 +39,12 @@ fun MainScreen(
     onDeleteWorkout: (LocalDate) -> Unit,
     onEditWorkoutDate: (LocalDate) -> Unit
 ) {
-    Column(modifier = Modifier.padding(16.dp)) {
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var dateToDelete by remember { mutableStateOf<LocalDate?>(null) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)) {
         Text(
             text = "WORKOUT LOG",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -76,19 +86,36 @@ fun MainScreen(
                                         RetroButton(
                                             onClick = { onDateSelected(date) },
                                             onEdit = { onEditWorkoutDate(date) },
-                                            onDelete = { onDeleteWorkout(date) },
-                                            text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises"
+                                            onDelete = {
+                                                dateToDelete = date
+                                                showDeleteConfirmation = true
+                                            },
+                                            text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises",
+                                            keepActionsVisible = showDeleteConfirmation && dateToDelete == date
                                         )
                                     }
                                 }
                             }
                         }
-                        // Add spacing after the last entry
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
         }
+    }
+
+    if (showDeleteConfirmation && dateToDelete != null) {
+        DeleteConfirmationDialog(
+            onConfirm = {
+                dateToDelete?.let { onDeleteWorkout(it) }
+                showDeleteConfirmation = false
+                dateToDelete = null
+            },
+            onDismiss = {
+                showDeleteConfirmation = false
+                dateToDelete = null
+            }
+        )
     }
 }

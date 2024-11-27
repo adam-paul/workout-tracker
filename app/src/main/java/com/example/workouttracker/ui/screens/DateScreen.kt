@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.ui.components.DeleteConfirmationDialog
 import com.example.workouttracker.ui.components.RetroButton
 import org.burnoutcrew.reorderable.*
 import java.time.LocalDate
@@ -31,6 +32,8 @@ fun DateScreen(
     onEditExercise: (Exercise) -> Unit,
     onReorderExercises: (List<Exercise>) -> Unit
 ) {
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     val exerciseList = remember { mutableStateListOf<Exercise>().apply { addAll(exercises) } }
 
     LaunchedEffect(exercises) {
@@ -153,7 +156,12 @@ fun DateScreen(
                                 IconButton(onClick = { onEditExercise(exercise) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
                                 }
-                                IconButton(onClick = { onDeleteExercise(exercise) }) {
+                                IconButton(
+                                    onClick = {
+                                        exerciseToDelete = exercise
+                                        showDeleteConfirmation = true
+                                    }
+                                ) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
                                 }
                             }
@@ -161,6 +169,22 @@ fun DateScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showDeleteConfirmation) {
+        exerciseToDelete?.let { exercise ->
+            DeleteConfirmationDialog(
+                onConfirm = {
+                    onDeleteExercise(exercise)
+                    showDeleteConfirmation = false
+                    exerciseToDelete = null
+                },
+                onDismiss = {
+                    showDeleteConfirmation = false
+                    exerciseToDelete = null
+                }
+            )
         }
     }
 }

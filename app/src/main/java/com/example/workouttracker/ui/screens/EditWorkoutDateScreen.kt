@@ -30,7 +30,7 @@ fun EditWorkoutDateScreen(
     var showDatePicker by remember { mutableStateOf(false) }
 
     if (showDatePicker) {
-        DatePickerDialog(
+        val dialog = DatePickerDialog(
             context,
             { _: DatePicker, year: Int, month: Int, dayOfMonth: Int ->
                 newDate = LocalDate.of(year, month + 1, dayOfMonth)
@@ -40,7 +40,14 @@ fun EditWorkoutDateScreen(
             calendar.get(Calendar.YEAR),
             calendar.get(Calendar.MONTH),
             calendar.get(Calendar.DAY_OF_MONTH)
-        ).show()
+        )
+
+        dialog.setOnDismissListener {
+            showDatePicker = false
+        }
+
+        dialog.show()
+        showDatePicker = false  // Reset immediately after showing
     }
 
     Column(modifier = Modifier.padding(16.dp)) {

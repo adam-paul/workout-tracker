@@ -30,10 +30,17 @@ fun RetroButton(
     modifier: Modifier = Modifier,
     onEdit: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
-    trailingIcon: @Composable (() -> Unit)? = null
+    trailingIcon: @Composable (() -> Unit)? = null,
+    keepActionsVisible: Boolean = false
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var showActions by remember { mutableStateOf(false) }
+
+    LaunchedEffect(keepActionsVisible) {
+        if (keepActionsVisible) {
+            showActions = true
+        }
+    }
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -132,7 +139,7 @@ fun RetroButton(
         }
 
         AnimatedVisibility(
-            visible = showActions && onEdit != null && onDelete != null,
+            visible = (showActions && onEdit != null && onDelete != null) || keepActionsVisible,
             enter = slideInHorizontally(initialOffsetX = { it }),
             exit = slideOutHorizontally(targetOffsetX = { it })
         ) {
@@ -141,13 +148,13 @@ fun RetroButton(
             ) {
                 IconButton(onClick = {
                     onEdit?.invoke()
-                    showActions = false
+                    if (!keepActionsVisible) showActions = false
                 }) {
                     Icon(Icons.Default.Edit, contentDescription = "Edit")
                 }
                 IconButton(onClick = {
                     onDelete?.invoke()
-                    showActions = false
+                    if (!keepActionsVisible) showActions = false
                 }) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
