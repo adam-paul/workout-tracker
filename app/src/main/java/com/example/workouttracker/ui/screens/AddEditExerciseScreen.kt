@@ -16,10 +16,20 @@ fun AddEditExerciseScreen(
     onExerciseAdded: (name: String, weight: String, repsOrDuration: String, notes: String) -> Unit,
     onCancel: () -> Unit
 ) {
-    var name by remember { mutableStateOf(exercise?.name ?: "") }
-    var weight by remember { mutableStateOf(exercise?.weight ?: "") }
-    var repsOrDuration by remember { mutableStateOf(exercise?.repsOrDuration ?: "") }
-    var notes by remember { mutableStateOf(exercise?.notes ?: "") }
+    var name by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var repsOrDuration by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+
+    // Add this LaunchedEffect block to update state when exercise changes
+    LaunchedEffect(exercise) {
+        if (exercise != null) {
+            name = exercise.name
+            weight = exercise.weight
+            repsOrDuration = exercise.repsOrDuration
+            notes = exercise.notes
+        }
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         TextField(
