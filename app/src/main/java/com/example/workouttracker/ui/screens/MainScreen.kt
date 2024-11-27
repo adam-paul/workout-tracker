@@ -1,10 +1,16 @@
 package com.example.workouttracker.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -12,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.ui.components.MonthConnector
 import com.example.workouttracker.ui.components.MonthHeader
 import com.example.workouttracker.ui.components.RetroButton
 import java.time.LocalDate
@@ -38,7 +45,7 @@ fun MainScreen(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             exercisesByMonth
                 .keys
                 .sortedDescending()
@@ -52,13 +59,33 @@ fun MainScreen(
                     }
                     if (expandedMonths.contains(month)) {
                         val datesInMonth = exercisesByMonth[month] ?: emptyMap()
-                        items(datesInMonth.keys.sortedDescending()) { date ->
-                            RetroButton(
-                                onClick = { onDateSelected(date) },
-                                onEdit = { onEditWorkoutDate(date) },
-                                onDelete = { onDeleteWorkout(date) },
-                                text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises"
-                            )
+                        val sortedDates = datesInMonth.keys.sortedDescending()
+
+                        sortedDates.forEachIndexed { index, date ->
+                            item {
+                                Box(modifier = Modifier.height(48.dp)) {  // Container for connector and button
+                                    MonthConnector(
+                                        isFirstItem = index == 0,
+                                        isLastItem = index == sortedDates.lastIndex
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 40.dp)
+                                    ) {
+                                        RetroButton(
+                                            onClick = { onDateSelected(date) },
+                                            onEdit = { onEditWorkoutDate(date) },
+                                            onDelete = { onDeleteWorkout(date) },
+                                            text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // Add spacing after the last entry
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
