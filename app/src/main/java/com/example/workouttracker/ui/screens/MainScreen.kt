@@ -90,7 +90,7 @@ fun MainScreen(
                                                 dateToDelete = date
                                                 showDeleteConfirmation = true
                                             },
-                                            text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} exercises",
+                                            text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} ${if ((datesInMonth[date]?.size ?: 0) == 1) "exercise" else "exercises"}",
                                             keepActionsVisible = showDeleteConfirmation && dateToDelete == date
                                         )
                                     }
