@@ -1,6 +1,7 @@
 package com.example.workouttracker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -35,10 +36,12 @@ fun RetroButton(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var showActions by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
 
     LaunchedEffect(keepActionsVisible) {
-        if (keepActionsVisible) {
-            showActions = true
+        if (!keepActionsVisible) {
+            showActions = false
+            isDeleting = false
         }
     }
 
@@ -141,7 +144,8 @@ fun RetroButton(
         AnimatedVisibility(
             visible = (showActions && onEdit != null && onDelete != null) || keepActionsVisible,
             enter = slideInHorizontally(initialOffsetX = { it }),
-            exit = slideOutHorizontally(targetOffsetX = { it })
+            // Use immediate exit if deleting, otherwise animate
+            exit = if (isDeleting) ExitTransition.None else slideOutHorizontally(targetOffsetX = { it })
         ) {
             Row(
                 modifier = Modifier.padding(start = 8.dp)
@@ -153,6 +157,7 @@ fun RetroButton(
                     Icon(Icons.Default.Edit, contentDescription = "Edit")
                 }
                 IconButton(onClick = {
+                    isDeleting = true
                     onDelete?.invoke()
                     if (!keepActionsVisible) showActions = false
                 }) {

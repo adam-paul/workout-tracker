@@ -23,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.workouttracker.data.database.ExerciseDatabase
+import com.example.workouttracker.data.model.ExerciseSet
 import com.example.workouttracker.ui.screens.*
 import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
 import com.example.workouttracker.viewmodel.ExerciseViewModel
@@ -38,7 +39,10 @@ class MainActivity : ComponentActivity() {
             WorkoutTrackerTheme {
                 val navController = rememberNavController()
                 val viewModel: ExerciseViewModel = viewModel(
-                    factory = ExerciseViewModelFactory(database.exerciseDao())
+                    factory = ExerciseViewModelFactory(
+                        database.exerciseDao(),
+                        database.exerciseSetDao()
+                    )
                 )
 
                 var currentRoute by remember { mutableStateOf("main") }
@@ -109,7 +113,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDeleteExercise = viewModel::deleteExercise,
                                 onEditExercise = { exercise ->
-                                    navController.navigate("editExercise/${exercise.id}")
+                                    navController.navigate("editExercise/${exercise.exercise.id}")
                                 },
                                 onReorderExercises = viewModel::reorderExercises
                             )
@@ -122,10 +126,32 @@ class MainActivity : ComponentActivity() {
                             val date = LocalDate.parse(backStackEntry.arguments?.getString("date"))
 
                             AddEditExerciseScreen(
-                                onExerciseAdded = { name, weight, repsOrDuration, notes ->
-                                    viewModel.addExercise(date, name, weight, repsOrDuration, notes)
+                                onExerciseAdded = { name, weight, repsOrDuration, notes, additionalSets ->
+                                    // Convert additional sets from SetState to ExerciseSet
+                                    val convertedSets = additionalSets.map { set ->
+                                        ExerciseSet(
+                                            exerciseId = 0, // This will be updated in ViewModel
+                                            weight = set.weight,
+                                            repsOrDuration = set.repsOrDuration,
+                                            notes = set.notes
+                                        )
+                                    }
+
+                                    viewModel.addExercise(
+                                        date = date,
+                                        name = name,
+                                        weight = weight,
+                                        repsOrDuration = repsOrDuration,
+                                        notes = notes,
+                                        additionalSets = convertedSets
+                                    )
                                     navController.popBackStack()
                                 },
+                                onExerciseUpdated = { id, name, sets ->
+                                    viewModel.updateExerciseWithSets(id, name, sets)
+                                    navController.popBackStack()
+                                },
+                                onSetDeleted = viewModel::deleteSet,
                                 onCancel = {
                                     navController.popBackStack()
                                 }
@@ -142,18 +168,31 @@ class MainActivity : ComponentActivity() {
 
                             AddEditExerciseScreen(
                                 exercise = exercise,
-                                onExerciseAdded = { name, weight, repsOrDuration, notes ->
+                                onExerciseAdded = { name, weight, repsOrDuration, notes, _ ->
                                     exercise?.let {
                                         viewModel.updateExercise(
                                             it.copy(
-                                                name = name,
-                                                weight = weight,
-                                                repsOrDuration = repsOrDuration,
-                                                notes = notes
+                                                exercise = it.exercise.copy(name = name),
+                                                sets = it.sets.toMutableList().apply {
+                                                    if (isNotEmpty()) {
+                                                        this[0] = this[0].copy(
+                                                            weight = weight,
+                                                            repsOrDuration = repsOrDuration,
+                                                            notes = notes
+                                                        )
+                                                    }
+                                                }
                                             )
                                         )
                                     }
                                     navController.popBackStack()
+                                },
+                                onExerciseUpdated = { id, name, sets ->
+                                    viewModel.updateExerciseWithSets(id, name, sets)
+                                    navController.popBackStack()
+                                },
+                                onSetDeleted = { exerciseId, setId ->
+                                    viewModel.deleteSet(exerciseId, setId)
                                 },
                                 onCancel = {
                                     navController.popBackStack()

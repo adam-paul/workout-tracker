@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.data.model.ExerciseWithSets
 import com.example.workouttracker.ui.components.DeleteConfirmationDialog
 import com.example.workouttracker.ui.components.MonthConnector
 import com.example.workouttracker.ui.components.MonthHeader
@@ -32,7 +32,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun MainScreen(
-    exercisesByMonth: Map<YearMonth, Map<LocalDate, List<Exercise>>>,
+    exercisesByMonth: Map<YearMonth, Map<LocalDate, List<ExerciseWithSets>>>,
     expandedMonths: List<YearMonth>,
     onToggleMonth: (YearMonth) -> Unit,
     onDateSelected: (LocalDate) -> Unit,
@@ -41,10 +41,12 @@ fun MainScreen(
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var dateToDelete by remember { mutableStateOf<LocalDate?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)) {
+            .padding(16.dp)
+    ) {
         Text(
             text = "WORKOUT LOG",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -54,26 +56,29 @@ fun MainScreen(
             modifier = Modifier.align(Alignment.CenterHorizontally),
             color = Color.Black
         )
+
         Spacer(modifier = Modifier.height(16.dp))
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             exercisesByMonth
                 .keys
                 .sortedDescending()
                 .forEach { month ->
-                    item {
+                    item(key = "header_${month}") {
                         MonthHeader(
                             month = month,
                             isExpanded = expandedMonths.contains(month),
                             onToggle = { onToggleMonth(month) }
                         )
                     }
+
                     if (expandedMonths.contains(month)) {
                         val datesInMonth = exercisesByMonth[month] ?: emptyMap()
                         val sortedDates = datesInMonth.keys.sortedDescending()
 
                         sortedDates.forEachIndexed { index, date ->
-                            item {
-                                Box(modifier = Modifier.height(48.dp)) {  // Container for connector and button
+                            item(key = "date_${month}_${date}") {
+                                Box(modifier = Modifier.height(48.dp)) {
                                     MonthConnector(
                                         isFirstItem = index == 0,
                                         isLastItem = index == sortedDates.lastIndex
@@ -83,12 +88,16 @@ fun MainScreen(
                                             .fillMaxWidth()
                                             .padding(start = 40.dp)
                                     ) {
+                                        // Each RetroButton gets its own remembered state
+                                        var showActionsForThis by remember(date) { mutableStateOf(false) }
+
                                         RetroButton(
                                             onClick = { onDateSelected(date) },
                                             onEdit = { onEditWorkoutDate(date) },
                                             onDelete = {
                                                 dateToDelete = date
                                                 showDeleteConfirmation = true
+                                                showActionsForThis = true
                                             },
                                             text = "${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} | ${datesInMonth[date]?.size ?: 0} ${if ((datesInMonth[date]?.size ?: 0) == 1) "exercise" else "exercises"}",
                                             keepActionsVisible = showDeleteConfirmation && dateToDelete == date
@@ -97,7 +106,7 @@ fun MainScreen(
                                 }
                             }
                         }
-                        item {
+                        item(key = "spacer_${month}") {
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }

@@ -5,25 +5,32 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.workouttracker.data.dao.ExerciseDao
+import com.example.workouttracker.data.dao.ExerciseSetDao
 import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.data.model.ExerciseSet
+import com.example.workouttracker.data.model.ExerciseWithSets
+import com.example.workouttracker.data.model.SetState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
-class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
-    val exercisesByDate: Flow<Map<LocalDate, List<Exercise>>> = dao.getAllExercises()
+class ExerciseViewModel(
+    private val exerciseDao: ExerciseDao,
+    private val setDao: ExerciseSetDao
+) : ViewModel() {
+    val exercisesByDate: Flow<Map<LocalDate, List<ExerciseWithSets>>> = exerciseDao.getAllExercises()
         .map { exercises ->
-            exercises.groupBy { LocalDate.parse(it.date) }
-                .mapValues { (_, exercises) -> exercises.sortedBy { it.order } }
+            exercises.groupBy { LocalDate.parse(it.exercise.date) }
+                .mapValues { (_, exercises) -> exercises.sortedBy { it.exercise.order } }
         }
 
-    val exercisesByMonth: Flow<Map<YearMonth, Map<LocalDate, List<Exercise>>>> = dao.getAllExercises()
+    val exercisesByMonth: Flow<Map<YearMonth, Map<LocalDate, List<ExerciseWithSets>>>> = exerciseDao.getAllExercises()
         .map { exercises ->
-            exercises.groupBy { YearMonth.from(LocalDate.parse(it.date)) }
+            exercises.groupBy { YearMonth.from(LocalDate.parse(it.exercise.date)) }
                 .mapValues { (_, monthExercises) ->
-                    monthExercises.groupBy { LocalDate.parse(it.date) }
+                    monthExercises.groupBy { LocalDate.parse(it.exercise.date) }
                 }
         }
 
@@ -51,76 +58,182 @@ class ExerciseViewModel(private val dao: ExerciseDao) : ViewModel() {
 
     fun updateWorkoutDate(oldDate: LocalDate, newDate: LocalDate) {
         viewModelScope.launch {
-            val exercises = dao.getExercisesByDate(oldDate.toString())
-            exercises.forEach { exercise ->
-                dao.updateExercise(exercise.copy(date = newDate.toString()))
+            val exercises = exerciseDao.getExercisesByDate(oldDate.toString())
+            exercises.forEach { exerciseWithSets ->
+                exerciseDao.updateExercise(
+                    exerciseWithSets.exercise.copy(date = newDate.toString())
+                )
             }
         }
     }
 
-    fun addExercise(date: LocalDate, name: String, weight: String, repsOrDuration: String, notes: String) {
+    // In ExerciseViewModel.kt
+    fun addExercise(
+        date: LocalDate,
+        name: String,
+        weight: String,
+        repsOrDuration: String,
+        notes: String,
+        additionalSets: List<ExerciseSet> = emptyList()
+    ) {
         viewModelScope.launch {
-            val currentExercises = dao.getExercisesByDate(date.toString())
-            val maxOrder = currentExercises.maxOfOrNull { it.order } ?: -1
+            // Get current exercises for ordering
+            val currentExercises = exerciseDao.getExercisesByDate(date.toString())
+            val maxOrder = currentExercises.maxOfOrNull { it.exercise.order } ?: -1
 
             val exercise = Exercise(
                 date = date.toString(),
                 name = name,
+                order = maxOrder + 1
+            )
+
+            // Insert exercise and get ID
+            val exerciseId = exerciseDao.insertExercise(exercise)
+
+            // Create first set
+            val firstSet = ExerciseSet(
+                exerciseId = exerciseId.toInt(),
                 weight = weight,
                 repsOrDuration = repsOrDuration,
                 notes = notes,
-                order = maxOrder + 1
+                order = 0
             )
-            dao.insertExercise(exercise)
+
+            // Create list of all sets to insert at once
+            val allSets = mutableListOf(firstSet)
+            allSets.addAll(
+                additionalSets.mapIndexed { index, set ->
+                    set.copy(
+                        exerciseId = exerciseId.toInt(),
+                        order = index + 1
+                    )
+                }
+            )
+
+            // Insert all sets in a single transaction
+            setDao.insertSets(allSets)
         }
     }
 
     fun deleteWorkout(date: LocalDate) {
         viewModelScope.launch {
-            dao.deleteExercisesByDate(date.toString())
+            exerciseDao.deleteExercisesByDate(date.toString())
         }
     }
 
-    fun deleteExercise(exercise: Exercise) {
+    fun deleteExercise(exercise: ExerciseWithSets) {
         viewModelScope.launch {
-            dao.deleteExercise(exercise)
+            exerciseDao.deleteExercise(exercise.exercise)
         }
     }
 
-    fun updateExercise(exercise: Exercise) {
+    fun updateExercise(exerciseWithSets: ExerciseWithSets) {
         viewModelScope.launch {
-            dao.updateExercise(exercise)
+            exerciseDao.updateExercise(exerciseWithSets.exercise)
+            exerciseWithSets.sets.forEach { set ->
+                setDao.updateSet(set)
+            }
         }
     }
 
-    fun reorderExercises(exercises: List<Exercise>) {
+    fun reorderExercises(exercises: List<ExerciseWithSets>) {
         viewModelScope.launch {
-            dao.updateExercises(exercises)
+            exerciseDao.updateExercises(exercises.map { it.exercise })
         }
     }
 
-    fun getExercisesForDate(date: LocalDate): Flow<List<Exercise>> {
-        return dao.getAllExercises()
+    fun getExercisesForDate(date: LocalDate): Flow<List<ExerciseWithSets>> {
+        return exerciseDao.getAllExercises()
             .map { exercises ->
                 exercises
-                    .filter { it.date == date.toString() }
-                    .sortedBy { it.order }
+                    .filter { it.exercise.date == date.toString() }
+                    .sortedBy { it.exercise.order }
             }
     }
 
-    fun getExerciseById(id: Int): Flow<Exercise?> {
-        return dao.getAllExercises()
-            .map { exercises ->
-                exercises.find { it.id == id }
+    fun getExerciseById(id: Int): Flow<ExerciseWithSets?> {
+        return exerciseDao.getExerciseByIdFlow(id)
+    }
+
+    // New methods for handling sets
+    fun addSet(exerciseId: Int, weight: String, repsOrDuration: String, notes: String) {
+        viewModelScope.launch {
+            val exerciseWithSets = exerciseDao.getExerciseById(exerciseId)
+            exerciseWithSets?.let {
+                val maxOrder = it.sets.maxOfOrNull { set -> set.order } ?: -1
+                val newSet = ExerciseSet(
+                    exerciseId = exerciseId,
+                    weight = weight,
+                    repsOrDuration = repsOrDuration,
+                    notes = notes,
+                    order = maxOrder + 1
+                )
+                setDao.insertSet(newSet)
             }
+        }
+    }
+
+    fun updateExerciseWithSets(
+        exerciseId: Int,
+        name: String,
+        sets: List<SetState>
+    ) {
+        viewModelScope.launch {
+            // Get current exercise
+            val currentExercise = exerciseDao.getExerciseById(exerciseId)
+            if (currentExercise != null) {
+                // Update exercise name
+                val updatedExercise = currentExercise.exercise.copy(name = name)
+                exerciseDao.updateExercise(updatedExercise)
+
+                // Get existing sets
+                val existingSets = currentExercise.sets
+
+                // Create a transaction to handle all set operations
+                setDao.updateSetsForExercise(
+                    exerciseId = exerciseId,
+                    newSets = sets.mapIndexed { index, setState ->
+                        ExerciseSet(
+                            id = if (index < existingSets.size) existingSets[index].id else 0,
+                            exerciseId = exerciseId,
+                            weight = setState.weight,
+                            repsOrDuration = setState.repsOrDuration,
+                            notes = setState.notes,
+                            order = index
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    fun deleteSet(exerciseId: Int, setId: Int) {
+        viewModelScope.launch {
+            val exercise = exerciseDao.getExerciseById(exerciseId)
+            if (exercise != null && exercise.sets.size > 1) {
+                // Delete the set
+                setDao.deleteSetById(setId)
+
+                // Reorder remaining sets
+                val remainingSets = exercise.sets
+                    .filter { it.id != setId }
+                    .mapIndexed { index, set ->
+                        set.copy(order = index)
+                    }
+                setDao.updateSets(remainingSets)
+            }
+        }
     }
 }
 
-class ExerciseViewModelFactory(private val dao: ExerciseDao) : ViewModelProvider.Factory {
+class ExerciseViewModelFactory(
+    private val exerciseDao: ExerciseDao,
+    private val setDao: ExerciseSetDao
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExerciseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExerciseViewModel(dao) as T
+            return ExerciseViewModel(exerciseDao, setDao) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

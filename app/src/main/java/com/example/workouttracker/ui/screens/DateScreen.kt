@@ -15,8 +15,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.workouttracker.data.model.Exercise
+import com.example.workouttracker.data.model.ExerciseWithSets
 import com.example.workouttracker.ui.components.DeleteConfirmationDialog
+import com.example.workouttracker.ui.components.ExerciseCard
 import com.example.workouttracker.ui.components.RetroButton
 import org.burnoutcrew.reorderable.*
 import java.time.LocalDate
@@ -25,20 +26,20 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun DateScreen(
     date: LocalDate,
-    exercises: List<Exercise>,
+    exercises: List<ExerciseWithSets>,
     onAddExercise: () -> Unit,
     onBack: () -> Unit,
-    onDeleteExercise: (Exercise) -> Unit,
-    onEditExercise: (Exercise) -> Unit,
-    onReorderExercises: (List<Exercise>) -> Unit
+    onDeleteExercise: (ExerciseWithSets) -> Unit,
+    onEditExercise: (ExerciseWithSets) -> Unit,
+    onReorderExercises: (List<ExerciseWithSets>) -> Unit
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
-    var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
-    val exerciseList = remember { mutableStateListOf<Exercise>().apply { addAll(exercises) } }
+    var exerciseToDelete by remember { mutableStateOf<ExerciseWithSets?>(null) }
+    val exerciseList = remember { mutableStateListOf<ExerciseWithSets>().apply { addAll(exercises) } }
 
     LaunchedEffect(exercises) {
-        val newExerciseIds = exercises.map { it.id }.toSet()
-        val currentExerciseIds = exerciseList.map { it.id }.toSet()
+        val newExerciseIds = exercises.map { it.exercise.id }.toSet()
+        val currentExerciseIds = exerciseList.map { it.exercise.id }.toSet()
         if (newExerciseIds != currentExerciseIds) {
             exerciseList.clear()
             exerciseList.addAll(exercises)
@@ -54,8 +55,10 @@ fun DateScreen(
             }
         },
         onDragEnd = { _, _ ->
-            val updatedExercises = exerciseList.mapIndexed { index, exercise ->
-                exercise.copy(order = index)
+            val updatedExercises = exerciseList.mapIndexed { index, exerciseWithSets ->
+                exerciseWithSets.copy(
+                    exercise = exerciseWithSets.exercise.copy(order = index)
+                )
             }
             onReorderExercises(updatedExercises)
         }
@@ -98,75 +101,17 @@ fun DateScreen(
                 .reorderable(state)
                 .detectReorderAfterLongPress(state)
         ) {
-            items(exerciseList, key = { it.id }) { exercise ->
-                ReorderableItem(state, key = exercise.id) { isDragging ->
-                    val elevation = if (isDragging) 8.dp else 1.dp
-                    val backgroundColor = if (isDragging) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.White
-                    val scale = if (isDragging) 1.03f else 1f
-
-                    ElevatedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .padding(vertical = 2.dp),
-                        colors = CardDefaults.elevatedCardColors(containerColor = backgroundColor)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (isDragging) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Drag Handle",
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.width(24.dp))
-                            }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = exercise.name,
-                                    style = MaterialTheme.typography.headlineSmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                )
-                                Text(
-                                    text = "Weight: ${exercise.weight}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                )
-                                Text(
-                                    text = "Reps/Duration: ${exercise.repsOrDuration}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                )
-                            }
-                            Row {
-                                IconButton(onClick = { onEditExercise(exercise) }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
-                                }
-                                IconButton(
-                                    onClick = {
-                                        exerciseToDelete = exercise
-                                        showDeleteConfirmation = true
-                                    }
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
-                                }
-                            }
+            items(exerciseList, key = { it.exercise.id }) { exerciseWithSets ->
+                ReorderableItem(state, key = exerciseWithSets.exercise.id) { isDragging ->
+                    ExerciseCard(
+                        exerciseWithSets = exerciseWithSets,
+                        isDragging = isDragging,
+                        onEdit = { onEditExercise(exerciseWithSets) },
+                        onDelete = {
+                            exerciseToDelete = exerciseWithSets
+                            showDeleteConfirmation = true
                         }
-                    }
+                    )
                 }
             }
         }
