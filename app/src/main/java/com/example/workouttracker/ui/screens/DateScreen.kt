@@ -3,14 +3,11 @@ package com.example.workouttracker.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,7 +28,8 @@ fun DateScreen(
     onBack: () -> Unit,
     onDeleteExercise: (ExerciseWithSets) -> Unit,
     onEditExercise: (ExerciseWithSets) -> Unit,
-    onReorderExercises: (List<ExerciseWithSets>) -> Unit
+    onReorderExercises: (List<ExerciseWithSets>) -> Unit,
+    onNavigateUp: () -> Unit
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var exerciseToDelete by remember { mutableStateOf<ExerciseWithSets?>(null) }
@@ -124,6 +122,10 @@ fun DateScreen(
                     onDeleteExercise(exercise)
                     showDeleteConfirmation = false
                     exerciseToDelete = null
+                    // Check if this was the last exercise
+                    if (exerciseList.size <= 1) {
+                        onNavigateUp()
+                    }
                 },
                 onDismiss = {
                     showDeleteConfirmation = false

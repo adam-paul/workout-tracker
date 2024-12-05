@@ -46,6 +46,7 @@ fun AddEditExerciseScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .imePadding()
     ) {
         TextField(
             value = name,

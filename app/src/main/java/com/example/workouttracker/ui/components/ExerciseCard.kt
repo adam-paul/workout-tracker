@@ -25,10 +25,14 @@ fun ExerciseCard(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
-    // Determine if card should be expandable
-    val hasNotes = exerciseWithSets.sets.firstOrNull()?.notes?.isNotBlank() == true
-    val hasAdditionalSets = exerciseWithSets.sets.size > 1
-    val isExpandable = hasNotes || hasAdditionalSets
+    // Calculate expandability in a derivedStateOf to ensure recomposition
+    val isExpandable by remember(exerciseWithSets) {
+        derivedStateOf {
+            val hasNotes = exerciseWithSets.sets.firstOrNull()?.notes?.isNotBlank() == true
+            val hasAdditionalSets = exerciseWithSets.sets.size > 1
+            hasNotes || hasAdditionalSets
+        }
+    }
 
     val backgroundColor = if (isDragging)
         MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
@@ -52,10 +56,9 @@ fun ExerciseCard(
                     start = 16.dp,
                     end = 16.dp,
                     top = 16.dp,
-                    bottom = if (isExpandable) 0.dp else 16.dp
+                    bottom = if (isExpanded) 0.dp else 16.dp
                 )
             ) {
-                // Header with exercise name and actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -77,7 +80,6 @@ fun ExerciseCard(
                                 fontWeight = FontWeight.Bold
                             )
                         )
-                        // Always show first set's basic info
                         exerciseWithSets.sets.firstOrNull()?.let { firstSet ->
                             Text(
                                 text = "Weight: ${firstSet.weight}",
@@ -105,15 +107,13 @@ fun ExerciseCard(
                 }
             }
 
-            // Expandable content
             if (isExpandable) {
                 AnimatedVisibility(
                     visible = isExpanded,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut()
                 ) {
-                    Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
-                        // Show first set's notes if they exist
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         exerciseWithSets.sets.firstOrNull()?.let { firstSet ->
                             if (firstSet.notes.isNotBlank()) {
                                 Text(
@@ -121,14 +121,14 @@ fun ExerciseCard(
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontFamily = FontFamily.Monospace
                                     ),
+                                    modifier = Modifier.padding(bottom = 8.dp)
                                 )
                             }
                         }
 
-                        // Show additional sets
                         exerciseWithSets.sets.drop(1).forEachIndexed { index, set ->
                             if (index > 0) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             }
                             Text(
                                 text = "Set ${index + 2}",
@@ -161,7 +161,6 @@ fun ExerciseCard(
                     }
                 }
 
-                // Expand/collapse button - minimal padding when collapsed
                 Surface(
                     onClick = { isExpanded = !isExpanded },
                     modifier = Modifier.fillMaxWidth(),
@@ -170,7 +169,7 @@ fun ExerciseCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = if (isExpanded) 0.dp else 0.dp),
+                            .padding(vertical = 8.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {

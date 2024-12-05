@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.example.workouttracker.ui.components.RetroButton
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
