@@ -20,11 +20,6 @@ class ExerciseViewModel(
     private val exerciseDao: ExerciseDao,
     private val setDao: ExerciseSetDao
 ) : ViewModel() {
-    val exercisesByDate: Flow<Map<LocalDate, List<ExerciseWithSets>>> = exerciseDao.getAllExercises()
-        .map { exercises ->
-            exercises.groupBy { LocalDate.parse(it.exercise.date) }
-                .mapValues { (_, exercises) -> exercises.sortedBy { it.exercise.order } }
-        }
 
     val exercisesByMonth: Flow<Map<YearMonth, Map<LocalDate, List<ExerciseWithSets>>>> = exerciseDao.getAllExercises()
         .map { exercises ->
@@ -153,24 +148,6 @@ class ExerciseViewModel(
 
     fun getExerciseById(id: Int): Flow<ExerciseWithSets?> {
         return exerciseDao.getExerciseByIdFlow(id)
-    }
-
-    // New methods for handling sets
-    fun addSet(exerciseId: Int, weight: String, repsOrDuration: String, notes: String) {
-        viewModelScope.launch {
-            val exerciseWithSets = exerciseDao.getExerciseById(exerciseId)
-            exerciseWithSets?.let {
-                val maxOrder = it.sets.maxOfOrNull { set -> set.order } ?: -1
-                val newSet = ExerciseSet(
-                    exerciseId = exerciseId,
-                    weight = weight,
-                    repsOrDuration = repsOrDuration,
-                    notes = notes,
-                    order = maxOrder + 1
-                )
-                setDao.insertSet(newSet)
-            }
-        }
     }
 
     fun updateExerciseWithSets(

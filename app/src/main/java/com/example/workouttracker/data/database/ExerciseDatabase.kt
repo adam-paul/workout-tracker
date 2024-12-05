@@ -124,10 +124,5 @@ abstract class ExerciseDatabase : RoomDatabase() {
                 instance
             }
         }
-
-        fun closeDatabase() {
-            INSTANCE?.close()
-            INSTANCE = null
-        }
     }
 }

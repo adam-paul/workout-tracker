@@ -65,7 +65,7 @@ fun AddEditExerciseScreen(
         ) {
             sets.forEachIndexed { index, set ->
                 if (index > 0) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 }
 
                 Row(

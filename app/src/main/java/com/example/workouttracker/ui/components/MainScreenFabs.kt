@@ -9,13 +9,11 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import com.example.workouttracker.data.database.BackupManager
 
 @Composable
 fun MenuFab(
-    onBackupCreated: (String?) -> Unit,
+    onBackupCreated: (Boolean) -> Unit,
     onBackupRestored: () -> Unit,
-    backupManager: BackupManager,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -30,9 +28,8 @@ fun MenuFab(
         MainMenuContent(
             showMenu = showMenu,
             onDismissMenu = { showMenu = false },
-            backupManager = backupManager,
-            onBackupCreated = onBackupCreated,
-            onBackupRestored = onBackupRestored
+            onBackup = { onBackupCreated(true) },
+            onRestore = onBackupRestored
         )
     }
 }

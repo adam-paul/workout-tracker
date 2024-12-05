@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -33,16 +34,47 @@ import com.example.workouttracker.viewmodel.ExerciseViewModelFactory
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
+    private lateinit var backupManager: BackupManager
+
     companion object {
         private val screensWithoutFAB = listOf("addExercise", "editExercise", "editDate")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         val database = ExerciseDatabase.getDatabase(applicationContext)
-        val backupManager = BackupManager(applicationContext).apply {
-            registerForActivityResult(this@MainActivity)
+        backupManager = BackupManager(applicationContext)
+
+        val backupLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK) {
+                result.data?.data?.let { uri ->
+                    val success = backupManager.performBackup(uri)
+                    Toast.makeText(
+                        this,
+                        if (success) "Backup created successfully" else "Backup failed",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
         }
+
+        val restoreLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK) {
+                result.data?.data?.let { uri ->
+                    val success = backupManager.performRestore(uri)
+                    if (!success) {
+                        Toast.makeText(this, "Restore failed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        backupManager.registerLaunchers(backupLauncher, restoreLauncher)
 
         setContent {
             WorkoutTrackerTheme {
@@ -268,23 +300,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                     ) {
                                         MenuFab(
-                                            onBackupCreated = { path ->
-                                                if (path != null) {
-                                                    Toast.makeText(
-                                                        applicationContext,
-                                                        "Backup created successfully",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                } else {
-                                                    Toast.makeText(
-                                                        applicationContext,
-                                                        "Failed to create backup",
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                }
-                                            },
-                                            onBackupRestored = { recreate() },
-                                            backupManager = backupManager
+                                            onBackupCreated = { backupManager.initiateBackup() },
+                                            onBackupRestored = { backupManager.initiateRestore() },
+                                            modifier = Modifier
                                         )
                                     }
 
