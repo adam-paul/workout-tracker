@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.workouttracker"
+    namespace = "dev.elgielabs.workoutlog"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.workouttracker"
+        applicationId = "dev.elgielabs.workoutlog"
         minSdk = 26
         targetSdk = 34
         versionCode = 5
