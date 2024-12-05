@@ -54,7 +54,7 @@ fun MainScreen(
                 letterSpacing = 1.4.sp
             ),
             modifier = Modifier.align(Alignment.CenterHorizontally),
-            color = Color.Black
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.height(16.dp))

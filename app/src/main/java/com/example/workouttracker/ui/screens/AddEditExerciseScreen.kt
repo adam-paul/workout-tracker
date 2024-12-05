@@ -180,7 +180,7 @@ private fun SetFields(
     TextField(
         value = repsOrDuration,
         onValueChange = onRepsOrDurationChange,
-        label = { Text("Reps/Duration", fontFamily = FontFamily.Monospace) },
+        label = { Text("Reps/Time", fontFamily = FontFamily.Monospace) },
         modifier = Modifier.fillMaxWidth(),
         textStyle = TextStyle(fontFamily = FontFamily.Monospace)
     )

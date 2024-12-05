@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.workouttracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.4"
+        versionCode = 5
+        versionName = "0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -72,6 +72,9 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Datastore
+    implementation(libs.androidx.datastore.preferences)
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)

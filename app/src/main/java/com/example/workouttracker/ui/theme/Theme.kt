@@ -1,44 +1,67 @@
 package com.example.workouttracker.ui.theme
 
-import android.app.Activity
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
+private val DarkColors = darkColorScheme(
     primary = MidForestGreen,
     secondary = DarkForestGreen,
-    tertiary = LightForestGreen
+    tertiary = LightForestGreen,
+    surface = Color(0xFF1C1B1F),
+    background = Color(0xFF1C1B1F),
+    onSurface = Color.White,
+    onBackground = Color.White
 )
 
-private val LightColorScheme = lightColorScheme(
+private val LightColors = lightColorScheme(
     primary = MidForestGreen,
     secondary = DarkForestGreen,
     tertiary = LightForestGreen,
     primaryContainer = MidForestGreen,
-    onPrimaryContainer = LightForestGreen
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    onPrimaryContainer = LightForestGreen,
+    surface = Color.White,
+    background = Color.White,
+    onSurface = Color.Black,
+    onBackground = Color.Black
 )
+
+// Theme state management
+object ThemeState {
+    private var _isDarkTheme = mutableStateOf(false)
+    var isDarkTheme: Boolean
+        get() = _isDarkTheme.value
+        set(value) {
+            _isDarkTheme.value = value
+        }
+
+    // Add reference to ThemeManager
+    private lateinit var themeManager: ThemeManager
+
+    fun initialize(themeManager: ThemeManager) {
+        this.themeManager = themeManager
+    }
+
+    suspend fun setTheme(isDark: Boolean) {
+        if (::themeManager.isInitialized) {
+            themeManager.setDarkTheme(isDark)
+            isDarkTheme = isDark
+        }
+    }
+}
 
 @Composable
 fun WorkoutTrackerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
+    darkTheme: Boolean = ThemeState.isDarkTheme,  // Updated to use ThemeState
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
@@ -47,9 +70,8 @@ fun WorkoutTrackerTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-
-        darkTheme -> LightColorScheme
-        else -> LightColorScheme
+        darkTheme -> DarkColors
+        else -> LightColors
     }
 
     MaterialTheme(

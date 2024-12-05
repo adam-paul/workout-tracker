@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -28,13 +29,17 @@ import com.example.workouttracker.data.model.ExerciseSet
 import com.example.workouttracker.ui.components.MenuFab
 import com.example.workouttracker.ui.components.AddFab
 import com.example.workouttracker.ui.screens.*
+import com.example.workouttracker.ui.theme.ThemeManager
+import com.example.workouttracker.ui.theme.ThemeState
 import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
 import com.example.workouttracker.viewmodel.ExerciseViewModel
 import com.example.workouttracker.viewmodel.ExerciseViewModelFactory
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private lateinit var backupManager: BackupManager
+    private lateinit var themeManager: ThemeManager
 
     companion object {
         private val screensWithoutFAB = listOf("addExercise", "editExercise", "editDate")
@@ -45,6 +50,17 @@ class MainActivity : ComponentActivity() {
 
         val database = ExerciseDatabase.getDatabase(applicationContext)
         backupManager = BackupManager(applicationContext)
+        themeManager = ThemeManager(applicationContext)
+
+        // Initialize ThemeState
+        ThemeState.initialize(themeManager)
+
+        // Collect initial theme
+        lifecycleScope.launch {
+            themeManager.isDarkTheme.collect { isDark ->
+                ThemeState.isDarkTheme = isDark
+            }
+        }
 
         val backupLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()

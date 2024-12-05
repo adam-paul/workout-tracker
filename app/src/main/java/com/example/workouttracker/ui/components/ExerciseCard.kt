@@ -25,7 +25,6 @@ fun ExerciseCard(
 ) {
     var isExpanded by remember { mutableStateOf(false) }
 
-    // Calculate expandability in a derivedStateOf to ensure recomposition
     val isExpandable by remember(exerciseWithSets) {
         derivedStateOf {
             val hasNotes = exerciseWithSets.sets.firstOrNull()?.notes?.isNotBlank() == true
@@ -49,60 +48,58 @@ fun ExerciseCard(
             .padding(vertical = 2.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = backgroundColor)
     ) {
-        Column {
+        Column(
+            modifier = Modifier.padding(
+                start = 16.dp,
+                end = 16.dp,
+                top = 16.dp,
+                bottom = if (isExpandable) 0.dp else 16.dp
+            )
+        ) {
             // Main content area
-            Column(
-                modifier = Modifier.padding(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
-                    bottom = if (isExpanded) 0.dp else 16.dp
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isDragging) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Drag Handle",
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                    }
+                if (isDragging) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Drag Handle",
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
 
-                    Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = exerciseWithSets.exercise.name,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    exerciseWithSets.sets.firstOrNull()?.let { firstSet ->
                         Text(
-                            text = exerciseWithSets.exercise.name,
-                            style = MaterialTheme.typography.headlineSmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
+                            text = "Weight: ${firstSet.weight}",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace
                             )
                         )
-                        exerciseWithSets.sets.firstOrNull()?.let { firstSet ->
-                            Text(
-                                text = "Weight: ${firstSet.weight}",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace
-                                )
+                        Text(
+                            text = "Reps/Time: ${firstSet.repsOrDuration}",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace
                             )
-                            Text(
-                                text = "Reps/Duration: ${firstSet.repsOrDuration}",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            )
-                        }
+                        )
                     }
+                }
 
-                    Row {
-                        IconButton(onClick = onEdit) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
-                        }
-                        IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
-                        }
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Exercise")
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Exercise")
                     }
                 }
             }
@@ -110,10 +107,10 @@ fun ExerciseCard(
             if (isExpandable) {
                 AnimatedVisibility(
                     visible = isExpanded,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Column(modifier = Modifier.padding(top = 8.dp)) {
                         exerciseWithSets.sets.firstOrNull()?.let { firstSet ->
                             if (firstSet.notes.isNotBlank()) {
                                 Text(
@@ -144,7 +141,7 @@ fun ExerciseCard(
                                 )
                             )
                             Text(
-                                text = "Reps/Duration: ${set.repsOrDuration}",
+                                text = "Reps/Time: ${set.repsOrDuration}",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace
                                 )
@@ -160,18 +157,10 @@ fun ExerciseCard(
                         }
                     }
                 }
-
-                Surface(
-                    onClick = { isExpanded = !isExpanded },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    IconButton(
+                        onClick = { isExpanded = !isExpanded },
+                        modifier = Modifier.align(Alignment.Center)
                     ) {
                         Icon(
                             imageVector = Icons.Default.ExpandMore,

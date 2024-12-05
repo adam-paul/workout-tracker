@@ -136,7 +136,11 @@ fun RetroButton(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    trailingIcon?.invoke()
+                    if (trailingIcon != null) {
+                        CompositionLocalProvider(LocalContentColor provides Color.Black) {  // Force black color for icons
+                            trailingIcon()
+                        }
+                    }
                 }
             }
         }
