@@ -16,7 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -30,7 +30,6 @@ import com.example.workouttracker.ui.components.MenuFab
 import com.example.workouttracker.ui.components.AddFab
 import com.example.workouttracker.ui.screens.*
 import com.example.workouttracker.ui.theme.ThemeManager
-import com.example.workouttracker.ui.theme.ThemeState
 import com.example.workouttracker.ui.theme.WorkoutTrackerTheme
 import com.example.workouttracker.viewmodel.ExerciseViewModel
 import com.example.workouttracker.viewmodel.ExerciseViewModelFactory
@@ -52,16 +51,7 @@ class MainActivity : ComponentActivity() {
         backupManager = BackupManager(applicationContext)
         themeManager = ThemeManager(applicationContext)
 
-        // Initialize ThemeState
-        ThemeState.initialize(themeManager)
-
-        // Collect initial theme
-        lifecycleScope.launch {
-            themeManager.isDarkTheme.collect { isDark ->
-                ThemeState.isDarkTheme = isDark
-            }
-        }
-
+        // Register backup functionality
         val backupLauncher = registerForActivityResult(
             ActivityResultContracts.StartActivityForResult()
         ) { result ->
@@ -93,7 +83,12 @@ class MainActivity : ComponentActivity() {
         backupManager.registerLaunchers(backupLauncher, restoreLauncher)
 
         setContent {
-            WorkoutTrackerTheme {
+            // Collect theme state within composition
+            val darkTheme by themeManager.isDarkTheme.collectAsState(initial = false)
+
+            WorkoutTrackerTheme(
+                darkTheme = darkTheme,
+            ) {
                 val navController = rememberNavController()
                 val viewModel: ExerciseViewModel = viewModel(
                     factory = ExerciseViewModelFactory(
@@ -291,15 +286,14 @@ class MainActivity : ComponentActivity() {
                                         easing = FastOutSlowInEasing
                                     )
                                 ),
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(16.dp)
+                                modifier = Modifier.align(Alignment.BottomEnd)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    // Separate animation for MenuFab
                                     AnimatedVisibility(
                                         visible = currentRoute == "main",
                                         enter = fadeIn(
@@ -316,15 +310,19 @@ class MainActivity : ComponentActivity() {
                                         )
                                     ) {
                                         MenuFab(
+                                            isDarkTheme = darkTheme,
+                                            onThemeChanged = { isDark ->
+                                                viewModel.viewModelScope.launch {
+                                                    themeManager.setDarkTheme(isDark)
+                                                }
+                                            },
                                             onBackupCreated = { backupManager.initiateBackup() },
-                                            onBackupRestored = { backupManager.initiateRestore() },
-                                            modifier = Modifier
+                                            onBackupRestored = { backupManager.initiateRestore() }
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.weight(1f))
 
-                                    // Add FAB (always visible)
                                     AddFab(
                                         onAddWorkout = {
                                             if (currentRoute == "main") {

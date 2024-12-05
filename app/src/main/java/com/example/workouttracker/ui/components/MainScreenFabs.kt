@@ -1,4 +1,3 @@
-// MainScreenFabs.kt
 package com.example.workouttracker.ui.components
 
 import androidx.compose.foundation.layout.*
@@ -12,6 +11,8 @@ import androidx.compose.ui.Modifier
 
 @Composable
 fun MenuFab(
+    isDarkTheme: Boolean,
+    onThemeChanged: (Boolean) -> Unit,
     onBackupCreated: (Boolean) -> Unit,
     onBackupRestored: () -> Unit,
     modifier: Modifier = Modifier
@@ -27,6 +28,8 @@ fun MenuFab(
 
         MainMenuContent(
             showMenu = showMenu,
+            isDarkTheme = isDarkTheme,
+            onThemeChanged = onThemeChanged,
             onDismissMenu = { showMenu = false },
             onBackup = { onBackupCreated(true) },
             onRestore = onBackupRestored

@@ -7,18 +7,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import com.example.workouttracker.ui.theme.ThemeState
-import kotlinx.coroutines.launch
 
 @Composable
 fun MainMenuContent(
     showMenu: Boolean,
+    isDarkTheme: Boolean,
+    onThemeChanged: (Boolean) -> Unit,
     onDismissMenu: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-
     DropdownMenu(
         expanded = showMenu,
         onDismissRequest = onDismissMenu
@@ -34,12 +32,8 @@ fun MainMenuContent(
                 modifier = Modifier.padding(end = 8.dp)
             )
             Switch(
-                checked = ThemeState.isDarkTheme,
-                onCheckedChange = {
-                    scope.launch {
-                        ThemeState.setTheme(it)
-                    }
-                }
+                checked = !isDarkTheme,  // Inverted the check
+                onCheckedChange = { onThemeChanged(!it) }  // Inverted the change
             )
             Text(
                 "Light",
